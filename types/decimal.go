@@ -22,16 +22,11 @@ const (
 	// number of decimal places
 	Precision = 18
 
-	// bits required to represent the above precision
-	// Ceiling[Log2[10^Precision - 1]]
+	// bytes required to represent the above precision
+	// Ceiling[Log2[999 999 999 999 999 999]]
 	DecimalPrecisionBits = 60
 
-	// decimalTruncateBits is the minimum number of bits removed
-	// by a truncate operation. It is equal to
-	// Floor[Log2[10^Precision - 1]].
-	decimalTruncateBits = DecimalPrecisionBits - 1
-
-	maxDecBitLen = maxBitLen + decimalTruncateBits
+	maxDecBitLen = maxBitLen + DecimalPrecisionBits
 
 	// max number of iterations in ApproxRoot function
 	maxApproxRootIterations = 100
@@ -143,7 +138,7 @@ func NewDecFromIntWithPrec(i Int, prec int64) Dec {
 // CONTRACT - This function does not mutate the input str.
 func NewDecFromStr(str string) (Dec, error) {
 	if len(str) == 0 {
-		return Dec{}, fmt.Errorf("%s: %w", str, ErrEmptyDecimalStr)
+		return Dec{}, ErrEmptyDecimalStr
 	}
 
 	// first extract any negative symbol
@@ -154,7 +149,7 @@ func NewDecFromStr(str string) (Dec, error) {
 	}
 
 	if len(str) == 0 {
-		return Dec{}, fmt.Errorf("%s: %w", str, ErrEmptyDecimalStr)
+		return Dec{}, ErrEmptyDecimalStr
 	}
 
 	strs := strings.Split(str, ".")
@@ -172,7 +167,7 @@ func NewDecFromStr(str string) (Dec, error) {
 	}
 
 	if lenDecs > Precision {
-		return Dec{}, fmt.Errorf("value '%s' exceeds max precision by %d decimal places: max precision %d", str, Precision-lenDecs, Precision)
+		return Dec{}, fmt.Errorf("invalid precision; max: %d, got: %d", Precision, lenDecs)
 	}
 
 	// add some extra zero's to correct to the Precision factor
@@ -182,10 +177,10 @@ func NewDecFromStr(str string) (Dec, error) {
 
 	combined, ok := new(big.Int).SetString(combinedStr, 10) // base 10
 	if !ok {
-		return Dec{}, fmt.Errorf("failed to set decimal string with base 10: %s", combinedStr)
+		return Dec{}, fmt.Errorf("failed to set decimal string: %s", combinedStr)
 	}
 	if combined.BitLen() > maxDecBitLen {
-		return Dec{}, fmt.Errorf("decimal '%s' out of range; bitLen: got %d, max %d", str, combined.BitLen(), maxDecBitLen)
+		return Dec{}, fmt.Errorf("decimal out of range; bitLen: got %d, max %d", combined.BitLen(), maxDecBitLen)
 	}
 	if neg {
 		combined = new(big.Int).Neg(combined)

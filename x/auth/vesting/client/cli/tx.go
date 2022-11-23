@@ -1,9 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -32,8 +29,6 @@ func GetTxCmd() *cobra.Command {
 
 	txCmd.AddCommand(
 		NewMsgCreateVestingAccountCmd(),
-		NewMsgCreatePeriodicVestingAccountCmd(),
-		NewMsgDonateAllVestingTokensCmd(),
 	)
 
 	return txCmd
@@ -80,122 +75,6 @@ timestamp.`,
 	}
 
 	cmd.Flags().Bool(FlagDelayed, false, "Create a delayed vesting account if true")
-	flags.AddTxFlagsToCmd(cmd)
-
-	return cmd
-}
-
-type VestingData struct {
-	StartTime int64         `json:"start_time"`
-	Periods   []InputPeriod `json:"periods"`
-}
-
-type InputPeriod struct {
-	Coins  string `json:"coins"`
-	Length int64  `json:"length_seconds"`
-}
-
-// NewMsgCreatePeriodicVestingAccountCmd returns a CLI command handler for creating a
-// MsgCreatePeriodicVestingAccountCmd transaction.
-func NewMsgCreatePeriodicVestingAccountCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "create-periodic-vesting-account [to_address] [periods_json_file]",
-		Short: "Create a new vesting account funded with an allocation of tokens.",
-		Long: `A sequence of coins and period length in seconds. Periods are sequential, in that the duration of of a period only starts at the end of the previous period. The duration of the first period starts upon account creation. For instance, the following periods.json file shows 20 "test" coins vesting 30 days apart from each other.
-		Where periods.json contains:
-
-		An array of coin strings and unix epoch times for coins to vest
-{ 
-	"start_time": 1625204910,
-	"periods":[
-		{
-			"coins": "10test",
-			"length_seconds":2592000
-		},
-		{
-			"coins": "10test",
-			"length_seconds":2592000 //30 days
-		}
-	]
-}
-`,
-		Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientTxContext(cmd)
-			if err != nil {
-				return err
-			}
-
-			toAddr, err := sdk.AccAddressFromBech32(args[0])
-			if err != nil {
-				return err
-			}
-
-			contents, err := ioutil.ReadFile(args[1])
-			if err != nil {
-				return err
-			}
-
-			var vestingData VestingData
-
-			err = json.Unmarshal(contents, &vestingData)
-			if err != nil {
-				return err
-			}
-
-			var periods []types.Period
-
-			for i, p := range vestingData.Periods {
-
-				amount, err := sdk.ParseCoinsNormalized(p.Coins)
-				if err != nil {
-					return err
-				}
-
-				if p.Length < 0 {
-					return fmt.Errorf("invalid period length of %d in period %d, length must be greater than 0", p.Length, i)
-				}
-				period := types.Period{Length: p.Length, Amount: amount}
-				periods = append(periods, period)
-			}
-
-			msg := types.NewMsgCreatePeriodicVestingAccount(clientCtx.GetFromAddress(), toAddr, vestingData.StartTime, periods)
-			if err := msg.ValidateBasic(); err != nil {
-				return err
-			}
-
-			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
-		},
-	}
-
-	flags.AddTxFlagsToCmd(cmd)
-
-	return cmd
-}
-
-// NewMsgDonateAllVestingTokensCmd returns a CLI command handler for creating a
-// MsgDonateAllVestingTokens transaction.
-func NewMsgDonateAllVestingTokensCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "donate-all-vesting-tokens",
-		Short: "Donate all vesting tokens of a vesting account to community pool.",
-		Long: `Donate all vesting tokens of a vesting account to community pool. 
-		The account must not have any delegated vesting tokens to prevent complex
-		vesting logic changes. After donation, the account will be changed to normal 
-		"BaseAccount".`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientTxContext(cmd)
-			if err != nil {
-				return err
-			}
-
-			msg := types.NewMsgDonateAllVestingTokens(clientCtx.GetFromAddress())
-
-			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
-		},
-	}
-
 	flags.AddTxFlagsToCmd(cmd)
 
 	return cmd

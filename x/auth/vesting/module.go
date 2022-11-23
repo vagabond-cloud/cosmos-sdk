@@ -80,21 +80,14 @@ type AppModule struct {
 	accountKeeper keeper.AccountKeeper
 	bankKeeper    types.BankKeeper
 	distrKeeper   types.DistrKeeper
-	stakingKeeper types.StakingKeeper
 }
 
-func NewAppModule(
-	ak keeper.AccountKeeper,
-	bk types.BankKeeper,
-	dk types.DistrKeeper,
-	sk types.StakingKeeper,
-) AppModule {
+func NewAppModule(ak keeper.AccountKeeper, bk types.BankKeeper, dk types.DistrKeeper) AppModule {
 	return AppModule{
 		AppModuleBasic: AppModuleBasic{},
 		accountKeeper:  ak,
 		bankKeeper:     bk,
 		distrKeeper:    dk,
-		stakingKeeper:  sk,
 	}
 }
 
@@ -103,7 +96,7 @@ func (AppModule) RegisterInvariants(_ sdk.InvariantRegistry) {}
 
 // Route returns the module's message router and handler.
 func (am AppModule) Route() sdk.Route {
-	return sdk.NewRoute(types.RouterKey, NewHandler(am.accountKeeper, am.bankKeeper, am.distrKeeper, am.stakingKeeper))
+	return sdk.NewRoute(types.RouterKey, NewHandler(am.accountKeeper, am.bankKeeper, am.distrKeeper))
 }
 
 // QuerierRoute returns an empty string as the module contains no query
@@ -112,15 +105,7 @@ func (AppModule) QuerierRoute() string { return "" }
 
 // RegisterServices registers module services.
 func (am AppModule) RegisterServices(cfg module.Configurator) {
-	types.RegisterMsgServer(
-		cfg.MsgServer(),
-		NewMsgServerImpl(
-			am.accountKeeper,
-			am.bankKeeper,
-			am.distrKeeper,
-			am.stakingKeeper,
-		),
-	)
+	types.RegisterMsgServer(cfg.MsgServer(), NewMsgServerImpl(am.accountKeeper, am.bankKeeper, am.distrKeeper))
 }
 
 // LegacyQuerierHandler performs a no-op.
@@ -130,6 +115,14 @@ func (am AppModule) LegacyQuerierHandler(_ *codec.LegacyAmino) sdk.Querier {
 
 // InitGenesis performs a no-op.
 func (am AppModule) InitGenesis(_ sdk.Context, _ codec.JSONCodec, _ json.RawMessage) []abci.ValidatorUpdate {
+	return []abci.ValidatorUpdate{}
+}
+
+// BeginBlock performs a no-op.
+func (am AppModule) BeginBlock(_ sdk.Context, _ abci.RequestBeginBlock) {}
+
+// EndBlock performs a no-op.
+func (am AppModule) EndBlock(_ sdk.Context, _ abci.RequestEndBlock) []abci.ValidatorUpdate {
 	return []abci.ValidatorUpdate{}
 }
 

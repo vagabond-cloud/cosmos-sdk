@@ -69,12 +69,11 @@ func startInProcess(cfg Config, val *Validator) error {
 		val.ClientCtx = val.ClientCtx.
 			WithClient(val.RPCClient)
 
+		// Add the tx service in the gRPC router.
 		app.RegisterTxService(val.ClientCtx)
-		app.RegisterTendermintService(val.ClientCtx)
 
-		if a, ok := app.(srvtypes.ApplicationQueryService); ok {
-			a.RegisterNodeService(val.ClientCtx)
-		}
+		// Add the tendermint queries service in the gRPC router.
+		app.RegisterTendermintService(val.ClientCtx)
 	}
 
 	if val.APIAddress != "" {
@@ -153,6 +152,7 @@ func collectGenFiles(cfg Config, vals []*Validator, outputDir string) error {
 }
 
 func initGenFiles(cfg Config, genAccounts []authtypes.GenesisAccount, genBalances []banktypes.Balance, genFiles []string) error {
+
 	// set the accounts in the genesis state
 	var authGenState authtypes.GenesisState
 	cfg.Codec.MustUnmarshalJSON(cfg.GenesisState[authtypes.ModuleName], &authGenState)
@@ -194,15 +194,15 @@ func initGenFiles(cfg Config, genAccounts []authtypes.GenesisAccount, genBalance
 }
 
 func writeFile(name string, dir string, contents []byte) error {
-	writePath := filepath.Join(dir) //nolint:gocritic
+	writePath := filepath.Join(dir)
 	file := filepath.Join(writePath, name)
 
-	err := tmos.EnsureDir(writePath, 0o755)
+	err := tmos.EnsureDir(writePath, 0755)
 	if err != nil {
 		return err
 	}
 
-	err = tmos.WriteFile(file, contents, 0o644)
+	err = tmos.WriteFile(file, contents, 0644)
 	if err != nil {
 		return err
 	}

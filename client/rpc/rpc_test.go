@@ -56,12 +56,6 @@ func (s *IntegrationTestSuite) TestLatestBlocks() {
 	s.Require().NoError(err)
 }
 
-func (s *IntegrationTestSuite) TestHealth() {
-	val0 := s.network.Validators[0]
-	_, err := rest.GetRequest(fmt.Sprintf("%s/health", val0.APIAddress))
-	s.Require().NoError(err)
-}
-
 func TestIntegrationTestSuite(t *testing.T) {
 	suite.Run(t, new(IntegrationTestSuite))
 }

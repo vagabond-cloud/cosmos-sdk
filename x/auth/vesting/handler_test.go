@@ -9,7 +9,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/simapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 
 	"github.com/cosmos/cosmos-sdk/x/auth/vesting"
 	"github.com/cosmos/cosmos-sdk/x/auth/vesting/types"
@@ -26,12 +25,7 @@ func (suite *HandlerTestSuite) SetupTest() {
 	checkTx := false
 	app := simapp.Setup(checkTx)
 
-	suite.handler = vesting.NewHandler(
-		app.AccountKeeper,
-		app.BankKeeper,
-		app.DistrKeeper,
-		app.StakingKeeper,
-	)
+	suite.handler = vesting.NewHandler(app.AccountKeeper, app.BankKeeper, app.DistrKeeper)
 	suite.app = app
 }
 
@@ -107,8 +101,6 @@ func (suite *HandlerTestSuite) TestMsgDonateVestingToken() {
 	addr2 := sdk.AccAddress([]byte("addr2_______________"))
 	addr3 := sdk.AccAddress([]byte("addr3_______________"))
 
-	valAddr := sdk.ValAddress([]byte("validator___________"))
-
 	acc1 := suite.app.AccountKeeper.NewAccountWithAddress(ctx, addr1)
 	suite.app.AccountKeeper.SetAccount(ctx, acc1)
 	suite.Require().NoError(simapp.FundAccount(suite.app.BankKeeper, ctx, addr1, balances))
@@ -118,11 +110,6 @@ func (suite *HandlerTestSuite) TestMsgDonateVestingToken() {
 	)
 	acc2.DelegatedVesting = balances
 	suite.app.AccountKeeper.SetAccount(ctx, acc2)
-	suite.app.StakingKeeper.SetDelegation(ctx, stakingtypes.Delegation{
-		DelegatorAddress: addr2.String(),
-		ValidatorAddress: valAddr.String(),
-		Shares:           sdk.OneDec(),
-	})
 	suite.Require().NoError(simapp.FundAccount(suite.app.BankKeeper, ctx, addr2, balances))
 
 	acc3 := types.NewPermanentLockedAccount(

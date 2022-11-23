@@ -190,6 +190,7 @@ func queryDelegatorDelegations(ctx sdk.Context, req abci.RequestQuery, k Keeper,
 
 	delegations := k.GetAllDelegatorDelegations(ctx, params.DelegatorAddr)
 	delegationResps, err := DelegationsToDelegationResponses(ctx, k, delegations)
+
 	if err != nil {
 		return nil, err
 	}

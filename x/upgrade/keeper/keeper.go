@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -242,20 +243,24 @@ func (k Keeper) GetLastCompletedUpgrade(ctx sdk.Context) (string, int64) {
 	iter := sdk.KVStoreReversePrefixIterator(ctx.KVStore(k.storeKey), []byte{types.DoneByte})
 	defer iter.Close()
 
-	var (
-		latest upgrade
-		found  bool
-	)
+	var upgrades []upgrade
 	for ; iter.Valid(); iter.Next() {
-		upgradeHeight := int64(sdk.BigEndianToUint64(iter.Value()))
-		if !found || upgradeHeight >= latest.BlockHeight {
-			found = true
-			name := parseDoneKey(iter.Key())
-			latest = upgrade{Name: name, BlockHeight: upgradeHeight}
-		}
+		name := parseDoneKey(iter.Key())
+		value := int64(sdk.BigEndianToUint64(iter.Value()))
+
+		upgrades = append(upgrades, upgrade{Name: name, BlockHeight: value})
 	}
 
-	return latest.Name, latest.BlockHeight
+	// sort upgrades in descending order by block height
+	sort.SliceStable(upgrades, func(i, j int) bool {
+		return upgrades[i].BlockHeight > upgrades[j].BlockHeight
+	})
+
+	if len(upgrades) > 0 {
+		return upgrades[0].Name, upgrades[0].BlockHeight
+	}
+
+	return "", 0
 }
 
 // parseDoneKey - split upgrade name from the done key
@@ -423,7 +428,7 @@ func (k Keeper) ReadUpgradeInfoFromDisk() (store.UpgradeInfo, error) {
 		return upgradeInfo, err
 	}
 
-	data, err := os.ReadFile(upgradeInfoPath)
+	data, err := ioutil.ReadFile(upgradeInfoPath)
 	if err != nil {
 		// if file does not exist, assume there are no upgrades
 		if os.IsNotExist(err) {

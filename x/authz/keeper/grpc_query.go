@@ -113,9 +113,11 @@ func (k Keeper) GranterGrants(c context.Context, req *authz.QueryGranterGrantsRe
 			Authorization: any,
 			Expiration:    auth.Expiration,
 		}, nil
+
 	}, func() *authz.Grant {
 		return &authz.Grant{}
 	})
+
 	if err != nil {
 		return nil, err
 	}

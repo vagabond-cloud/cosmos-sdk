@@ -14,8 +14,6 @@ import (
 )
 
 // Simulation operation weights constants
-//
-//nolint:gosec
 const (
 	OpWeightMsgGrantAllowance  = "op_weight_msg_grant_fee_allowance"
 	OpWeightMsgRevokeAllowance = "op_weight_msg_grant_revoke_allowance"

@@ -121,14 +121,13 @@ func TestGetImmutable(t *testing.T) {
 	store := UnsafeNewStore(tree)
 
 	updated, err := tree.Set([]byte("hello"), []byte("adios"))
-	require.NoError(t, err)
 	require.True(t, updated)
 	hash, ver, err := tree.SaveVersion()
 	cID = types.CommitID{Version: ver, Hash: hash}
 	require.Nil(t, err)
 
 	_, err = store.GetImmutable(cID.Version + 1)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	newStore, err := store.GetImmutable(cID.Version - 1)
 	require.NoError(t, err)

@@ -23,7 +23,7 @@ keyring-backend = "{{ .KeyringBackend }}"
 output = "{{ .Output }}"
 # <host>:<port> to Tendermint RPC interface for this chain
 node = "{{ .Node }}"
-# Transaction broadcasting mode (sync|async)
+# Transaction broadcasting mode (sync|async|block)
 broadcast-mode = "{{ .BroadcastMode }}"
 `
 

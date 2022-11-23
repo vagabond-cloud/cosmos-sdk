@@ -3,8 +3,6 @@ package keeper
 import (
 	"fmt"
 
-	"cosmossdk.io/math"
-
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/distribution/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
@@ -87,7 +85,7 @@ func (k Keeper) CalculateDelegationRewards(ctx sdk.Context, val stakingtypes.Val
 
 					// Note: It is necessary to truncate so we don't allow withdrawing
 					// more rewards than owed.
-					stake = stake.MulTruncate(math.LegacyOneDec().Sub(event.Fraction))
+					stake = stake.MulTruncate(sdk.OneDec().Sub(event.Fraction))
 					startingPeriod = endingPeriod
 				}
 				return false
@@ -198,7 +196,7 @@ func (k Keeper) withdrawDelegationRewards(ctx sdk.Context, val stakingtypes.Vali
 
 		// Note, we do not call the NewCoins constructor as we do not want the zero
 		// coin removed.
-		finalRewards = sdk.Coins{sdk.NewCoin(baseDenom, math.ZeroInt())}
+		finalRewards = sdk.Coins{sdk.NewCoin(baseDenom, sdk.ZeroInt())}
 	}
 
 	ctx.EventManager().EmitEvent(

@@ -5,7 +5,6 @@ import (
 
 	"github.com/tendermint/tendermint/libs/rand"
 	tmcrypto "github.com/tendermint/tendermint/proto/tendermint/crypto"
-	"golang.org/x/exp/maps"
 
 	sdkmaps "github.com/cosmos/cosmos-sdk/store/internal/maps"
 )
@@ -47,7 +46,12 @@ const (
 )
 
 func SortedKeys(data map[string][]byte) []string {
-	keys := maps.Keys(data)
+	keys := make([]string, len(data))
+	i := 0
+	for k := range data {
+		keys[i] = k
+		i++
+	}
 	sort.Strings(keys)
 	return keys
 }
@@ -66,7 +70,7 @@ func GetKey(allkeys []string, loc Where) string {
 		return allkeys[len(allkeys)-1]
 	}
 	// select a random index between 1 and allkeys-2
-	idx := rand.NewRand().Int()%(len(allkeys)-2) + 1
+	idx := rand.Int()%(len(allkeys)-2) + 1
 	return allkeys[idx]
 }
 

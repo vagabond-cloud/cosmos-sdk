@@ -4,17 +4,14 @@ import (
 	"reflect"
 	"testing"
 
-	"cosmossdk.io/math"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 
 	"github.com/cosmos/cosmos-sdk/baseapp"
+	"github.com/cosmos/cosmos-sdk/simapp"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
-	"github.com/cosmos/cosmos-sdk/testutil"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	moduletestutil "github.com/cosmos/cosmos-sdk/types/module/testutil"
-	"github.com/cosmos/cosmos-sdk/x/params"
-	"github.com/cosmos/cosmos-sdk/x/params/keeper"
 	"github.com/cosmos/cosmos-sdk/x/params/types"
 	"github.com/cosmos/cosmos-sdk/x/params/types/proposal"
 )
@@ -22,29 +19,30 @@ import (
 type KeeperTestSuite struct {
 	suite.Suite
 
-	ctx          sdk.Context
-	paramsKeeper keeper.Keeper
-	queryClient  proposal.QueryClient
+	app *simapp.SimApp
+	ctx sdk.Context
+
+	queryClient proposal.QueryClient
 }
 
 func (suite *KeeperTestSuite) SetupTest() {
-	encodingCfg := moduletestutil.MakeTestEncodingConfig(params.AppModuleBasic{})
-	key := sdk.NewKVStoreKey(types.StoreKey)
-	tkey := sdk.NewTransientStoreKey("params_transient_test")
+	suite.app, suite.ctx = createTestApp(true)
 
-	suite.ctx = testutil.DefaultContext(key, tkey)
-	suite.paramsKeeper = keeper.NewKeeper(encodingCfg.Codec, encodingCfg.Amino, key, tkey)
-	suite.paramsKeeper.Subspace("bank")
-	suite.paramsKeeper.Subspace("staking")
-
-	queryHelper := baseapp.NewQueryServerTestHelper(suite.ctx, encodingCfg.InterfaceRegistry)
-	proposal.RegisterQueryServer(queryHelper, suite.paramsKeeper)
-
+	queryHelper := baseapp.NewQueryServerTestHelper(suite.ctx, suite.app.InterfaceRegistry())
+	proposal.RegisterQueryServer(queryHelper, suite.app.ParamsKeeper)
 	suite.queryClient = proposal.NewQueryClient(queryHelper)
 }
 
 func TestKeeperTestSuite(t *testing.T) {
 	suite.Run(t, new(KeeperTestSuite))
+}
+
+// returns context and app
+func createTestApp(isCheckTx bool) (*simapp.SimApp, sdk.Context) {
+	app := simapp.Setup(isCheckTx)
+	ctx := app.BaseApp.NewContext(isCheckTx, tmproto.Header{})
+
+	return app, ctx
 }
 
 func validateNoOp(_ interface{}) error { return nil }
@@ -150,29 +148,6 @@ func indirect(ptr interface{}) interface{} {
 	return reflect.ValueOf(ptr).Elem().Interface()
 }
 
-func TestGetSubspaces(t *testing.T) {
-	_, _, _, _, keeper := testComponents()
-
-	table := types.NewKeyTable(
-		types.NewParamSetPair([]byte("string"), "", validateNoOp),
-		types.NewParamSetPair([]byte("bool"), false, validateNoOp),
-	)
-
-	_ = keeper.Subspace("key1").WithKeyTable(table)
-	_ = keeper.Subspace("key2").WithKeyTable(table)
-
-	spaces := keeper.GetSubspaces()
-	require.Len(t, spaces, 2)
-
-	var names []string
-	for _, ss := range spaces {
-		names = append(names, ss.Name())
-	}
-
-	require.Contains(t, names, "key1")
-	require.Contains(t, names, "key2")
-}
-
 func TestSubspace(t *testing.T) {
 	cdc, ctx, key, _, keeper := testComponents()
 
@@ -190,9 +165,9 @@ func TestSubspace(t *testing.T) {
 		{"uint16", uint16(1), uint16(0), new(uint16)},
 		{"uint32", uint32(1), uint32(0), new(uint32)},
 		{"uint64", uint64(1), uint64(0), new(uint64)},
-		{"int", sdk.NewInt(1), *new(math.Int), new(math.Int)},
+		{"int", sdk.NewInt(1), *new(sdk.Int), new(sdk.Int)},
 		{"uint", sdk.NewUint(1), *new(sdk.Uint), new(sdk.Uint)},
-		{"dec", math.LegacyNewDec(1), *new(sdk.Dec), new(sdk.Dec)},
+		{"dec", sdk.NewDec(1), *new(sdk.Dec), new(sdk.Dec)},
 		{"struct", s{1}, s{0}, new(s)},
 	}
 
@@ -205,7 +180,7 @@ func TestSubspace(t *testing.T) {
 		types.NewParamSetPair([]byte("uint16"), uint16(0), validateNoOp),
 		types.NewParamSetPair([]byte("uint32"), uint32(0), validateNoOp),
 		types.NewParamSetPair([]byte("uint64"), uint64(0), validateNoOp),
-		types.NewParamSetPair([]byte("int"), math.Int{}, validateNoOp),
+		types.NewParamSetPair([]byte("int"), sdk.Int{}, validateNoOp),
 		types.NewParamSetPair([]byte("uint"), sdk.Uint{}, validateNoOp),
 		types.NewParamSetPair([]byte("dec"), sdk.Dec{}, validateNoOp),
 		types.NewParamSetPair([]byte("struct"), s{}, validateNoOp),

@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	cfg "github.com/tendermint/tendermint/config"
 	"github.com/tendermint/tendermint/libs/cli"
+	tmos "github.com/tendermint/tendermint/libs/os"
 	tmrand "github.com/tendermint/tendermint/libs/rand"
 	"github.com/tendermint/tendermint/types"
 
@@ -30,9 +31,6 @@ const (
 
 	// FlagSeed defines a flag to initialize the private validator key from a specific seed.
 	FlagRecover = "recover"
-
-	// FlagDefaultBondDenom defines the default denom to use in the genesis file.
-	FlagDefaultBondDenom = "default-denom"
 )
 
 type printInfo struct {
@@ -59,7 +57,7 @@ func displayInfo(info printInfo) error {
 		return err
 	}
 
-	_, err = fmt.Fprintf(os.Stderr, "%s\n", sdk.MustSortJSON(out))
+	_, err = fmt.Fprintf(os.Stderr, "%s\n", string(sdk.MustSortJSON(out)))
 
 	return err
 }
@@ -81,11 +79,7 @@ func InitCmd(mbm module.BasicManager, defaultNodeHome string) *cobra.Command {
 			config.SetRoot(clientCtx.HomeDir)
 
 			chainID, _ := cmd.Flags().GetString(flags.FlagChainID)
-			switch {
-			case chainID != "":
-			case clientCtx.ChainID != "":
-				chainID = clientCtx.ChainID
-			default:
+			if chainID == "" {
 				chainID = fmt.Sprintf("test-chain-%v", tmrand.Str(6))
 			}
 
@@ -114,23 +108,14 @@ func InitCmd(mbm module.BasicManager, defaultNodeHome string) *cobra.Command {
 
 			genFile := config.GenesisFile()
 			overwrite, _ := cmd.Flags().GetBool(FlagOverwrite)
-			defaultDenom, _ := cmd.Flags().GetString(FlagDefaultBondDenom)
 
-			// use os.Stat to check if the file exists
-			_, err = os.Stat(genFile)
-			if !overwrite && !os.IsNotExist(err) {
+			if !overwrite && tmos.FileExists(genFile) {
 				return fmt.Errorf("genesis.json file already exists: %v", genFile)
 			}
 
-			// Overwrites the SDK default denom for side-effects
-			if defaultDenom != "" {
-				sdk.DefaultBondDenom = defaultDenom
-			}
-			appGenState := mbm.DefaultGenesis(cdc)
-
-			appState, err := json.MarshalIndent(appGenState, "", " ")
+			appState, err := json.MarshalIndent(mbm.DefaultGenesis(cdc), "", " ")
 			if err != nil {
-				return errors.Wrap(err, "Failed to marshal default genesis state")
+				return errors.Wrap(err, "Failed to marshall default genesis state")
 			}
 
 			genDoc := &types.GenesisDoc{}
@@ -150,7 +135,7 @@ func InitCmd(mbm module.BasicManager, defaultNodeHome string) *cobra.Command {
 			genDoc.AppState = appState
 
 			if err = genutil.ExportGenesisFile(genDoc, genFile); err != nil {
-				return errors.Wrap(err, "Failed to export genesis file")
+				return errors.Wrap(err, "Failed to export gensis file")
 			}
 
 			toPrint := newPrintInfo(config.Moniker, chainID, nodeID, "", appState)
@@ -164,7 +149,6 @@ func InitCmd(mbm module.BasicManager, defaultNodeHome string) *cobra.Command {
 	cmd.Flags().BoolP(FlagOverwrite, "o", false, "overwrite the genesis.json file")
 	cmd.Flags().Bool(FlagRecover, false, "provide seed phrase to recover existing key instead of creating")
 	cmd.Flags().String(flags.FlagChainID, "", "genesis file chain-id, if left blank will be randomly created")
-	cmd.Flags().String(FlagDefaultBondDenom, "", "genesis file default denomination, if left blank default value is 'stake'")
 
 	return cmd
 }

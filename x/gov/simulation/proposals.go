@@ -3,9 +3,10 @@ package simulation
 import (
 	"math/rand"
 
+	simappparams "github.com/cosmos/cosmos-sdk/simapp/params"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	simtypes "github.com/cosmos/cosmos-sdk/types/simulation"
-	"github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
+	"github.com/cosmos/cosmos-sdk/x/gov/types"
 	"github.com/cosmos/cosmos-sdk/x/simulation"
 )
 
@@ -17,7 +18,7 @@ func ProposalContents() []simtypes.WeightedProposalContent {
 	return []simtypes.WeightedProposalContent{
 		simulation.NewWeightedProposalContent(
 			OpWeightMsgDeposit,
-			DefaultWeightTextProposal,
+			simappparams.DefaultWeightTextProposal,
 			SimulateTextProposalContent,
 		),
 	}
@@ -25,7 +26,7 @@ func ProposalContents() []simtypes.WeightedProposalContent {
 
 // SimulateTextProposalContent returns a random text proposal content.
 func SimulateTextProposalContent(r *rand.Rand, _ sdk.Context, _ []simtypes.Account) simtypes.Content {
-	return v1beta1.NewTextProposal(
+	return types.NewTextProposal(
 		simtypes.RandStringOfLength(r, 140),
 		simtypes.RandStringOfLength(r, 5000),
 	)

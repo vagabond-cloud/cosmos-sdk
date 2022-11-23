@@ -8,14 +8,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-	abci "github.com/tendermint/tendermint/abci/types"
-	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
-
 	"github.com/cosmos/cosmos-sdk/codec"
 	codecTypes "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+
+	"github.com/stretchr/testify/require"
+	abci "github.com/tendermint/tendermint/abci/types"
+	types1 "github.com/tendermint/tendermint/proto/tendermint/types"
 )
 
 var (
@@ -28,12 +28,12 @@ var (
 	// test abci message types
 	mockHash          = []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	testBeginBlockReq = abci.RequestBeginBlock{
-		Header: tmproto.Header{
+		Header: types1.Header{
 			Height: 1,
 		},
-		ByzantineValidators: []abci.Misbehavior{},
+		ByzantineValidators: []abci.Evidence{},
 		Hash:                mockHash,
-		LastCommitInfo: abci.CommitInfo{
+		LastCommitInfo: abci.LastCommitInfo{
 			Round: 1,
 			Votes: []abci.VoteInfo{},
 		},
@@ -53,7 +53,7 @@ var (
 	}
 	testEndBlockRes = abci.ResponseEndBlock{
 		Events:                []abci.Event{},
-		ConsensusParamUpdates: &tmproto.ConsensusParams{},
+		ConsensusParamUpdates: &abci.ConsensusParams{},
 		ValidatorUpdates:      []abci.ValidatorUpdate{},
 	}
 	mockTxBytes1      = []byte{9, 8, 7, 6, 5, 4, 3, 2, 1}
@@ -371,7 +371,7 @@ func readInFile(name string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-// segmentBytes returns all of the protobuf messages contained in the byte array as an array of byte arrays
+// Returns all of the protobuf messages contained in the byte array as an array of byte arrays
 // The messages have their length prefix removed
 func segmentBytes(bz []byte) ([][]byte, error) {
 	var err error
@@ -387,7 +387,7 @@ func segmentBytes(bz []byte) ([][]byte, error) {
 	return segments, nil
 }
 
-// getHeadSegment returns the bytes for the leading protobuf object in the byte array (removing the length prefix) and returns the remainder of the byte array
+// Returns the bytes for the leading protobuf object in the byte array (removing the length prefix) and returns the remainder of the byte array
 func getHeadSegment(bz []byte) ([]byte, []byte, error) {
 	size, prefixSize := binary.Uvarint(bz)
 	if prefixSize < 0 {

@@ -3,21 +3,21 @@ package tx
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
-	gogogrpc "github.com/cosmos/gogoproto/grpc"
-	"github.com/golang/protobuf/proto" //nolint:staticcheck
+	"github.com/cosmos/cosmos-sdk/client/grpc/tmservice"
+	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
+
+	gogogrpc "github.com/gogo/protobuf/grpc"
+	"github.com/golang/protobuf/proto" //nolint: staticcheck
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/cosmos/cosmos-sdk/client"
-	"github.com/cosmos/cosmos-sdk/client/grpc/tmservice"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	"github.com/cosmos/cosmos-sdk/types/query"
+	pagination "github.com/cosmos/cosmos-sdk/types/query"
 	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 )
 
@@ -40,33 +40,21 @@ func NewTxServer(clientCtx client.Context, simulate baseAppSimulateFn, interface
 	}
 }
 
-var (
-	_ txtypes.ServiceServer = txServer{}
-
-	// EventRegex checks that an event string is formatted with {alphabetic}.{alphabetic}={value}
-	EventRegex = regexp.MustCompile(`^[a-zA-Z_]+\.[a-zA-Z_]+=\S+$`)
-)
+var _ txtypes.ServiceServer = txServer{}
 
 const (
 	eventFormat = "{eventType}.{eventAttribute}={value}"
 )
 
-// GetTxsEvent implements the ServiceServer.TxsByEvents RPC method.
+// TxsByEvents implements the ServiceServer.TxsByEvents RPC method.
 func (s txServer) GetTxsEvent(ctx context.Context, req *txtypes.GetTxsEventRequest) (*txtypes.GetTxsEventResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request cannot be nil")
 	}
 
-	page := int(req.Page)
-	// Tendermint node.TxSearch that is used for querying txs defines pages starting from 1,
-	// so we default to 1 if not provided in the request.
-	if page == 0 {
-		page = 1
-	}
-
-	limit := int(req.Limit)
-	if limit == 0 {
-		limit = query.DefaultLimit
+	page, limit, err := pagination.ParsePagination(req.Pagination)
+	if err != nil {
+		return nil, err
 	}
 	orderBy := parseOrderBy(req.OrderBy)
 
@@ -75,7 +63,7 @@ func (s txServer) GetTxsEvent(ctx context.Context, req *txtypes.GetTxsEventReque
 	}
 
 	for _, event := range req.Events {
-		if !EventRegex.Match([]byte(event)) {
+		if !strings.Contains(event, "=") || strings.Count(event, "=") > 1 {
 			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("invalid event; event %s should be of the format: %s", event, eventFormat))
 		}
 	}
@@ -100,7 +88,9 @@ func (s txServer) GetTxsEvent(ctx context.Context, req *txtypes.GetTxsEventReque
 	return &txtypes.GetTxsEventResponse{
 		Txs:         txsList,
 		TxResponses: result.Txs,
-		Total:       result.TotalCount,
+		Pagination: &pagination.PageResponse{
+			Total: result.TotalCount,
+		},
 	}, nil
 }
 
@@ -191,7 +181,7 @@ func (s txServer) GetBlockWithTxs(ctx context.Context, req *txtypes.GetBlockWith
 			"or greater than the current height %d", req.Height, currentHeight)
 	}
 
-	blockID, block, err := tmservice.GetProtoBlock(ctx, s.clientCtx, &req.Height)
+	blockId, block, err := tmservice.GetProtoBlock(ctx, s.clientCtx, &req.Height)
 	if err != nil {
 		return nil, err
 	}
@@ -202,13 +192,13 @@ func (s txServer) GetBlockWithTxs(ctx context.Context, req *txtypes.GetBlockWith
 		limit = req.Pagination.Limit
 	} else {
 		offset = 0
-		limit = query.DefaultLimit
+		limit = pagination.DefaultLimit
 	}
 
 	blockTxs := block.Data.Txs
 	blockTxsLn := uint64(len(blockTxs))
 	txs := make([]*txtypes.Tx, 0, limit)
-	if offset >= blockTxsLn && blockTxsLn != 0 {
+	if offset >= blockTxsLn {
 		return nil, sdkerrors.ErrInvalidRequest.Wrapf("out of range: cannot paginate %d txs with offset %d and limit %d", blockTxsLn, offset, limit)
 	}
 	decodeTxAt := func(i uint64) error {
@@ -240,56 +230,16 @@ func (s txServer) GetBlockWithTxs(ctx context.Context, req *txtypes.GetBlockWith
 
 	return &txtypes.GetBlockWithTxsResponse{
 		Txs:     txs,
-		BlockId: &blockID,
+		BlockId: &blockId,
 		Block:   block,
-		Pagination: &query.PageResponse{
+		Pagination: &pagination.PageResponse{
 			Total: blockTxsLn,
 		},
 	}, nil
 }
 
-// BroadcastTx implements the ServiceServer.BroadcastTx RPC method.
 func (s txServer) BroadcastTx(ctx context.Context, req *txtypes.BroadcastTxRequest) (*txtypes.BroadcastTxResponse, error) {
 	return client.TxServiceBroadcast(ctx, s.clientCtx, req)
-}
-
-// TxEncode implements the ServiceServer.TxEncode RPC method.
-func (s txServer) TxEncode(ctx context.Context, req *txtypes.TxEncodeRequest) (*txtypes.TxEncodeResponse, error) {
-	if req.Tx == nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid empty tx")
-	}
-
-	txBuilder := &wrapper{tx: req.Tx}
-
-	encodedBytes, err := s.clientCtx.TxConfig.TxEncoder()(txBuilder)
-	if err != nil {
-		return nil, err
-	}
-
-	return &txtypes.TxEncodeResponse{
-		TxBytes: encodedBytes,
-	}, nil
-}
-
-// TxDecode implements the ServiceServer.TxDecode RPC method.
-func (s txServer) TxDecode(ctx context.Context, req *txtypes.TxDecodeRequest) (*txtypes.TxDecodeResponse, error) {
-	if req.TxBytes == nil {
-		return nil, status.Error(codes.InvalidArgument, "invalid empty tx bytes")
-	}
-
-	txb, err := s.clientCtx.TxConfig.TxDecoder()(req.TxBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	txWrapper, ok := txb.(*wrapper)
-	if ok {
-		return &txtypes.TxDecodeResponse{
-			Tx: txWrapper.tx,
-		}, nil
-	}
-
-	return nil, fmt.Errorf("expected %T, got %T", &wrapper{}, txb)
 }
 
 // RegisterTxService registers the tx service on the gRPC router.

@@ -2,11 +2,12 @@ package keeper_test
 
 import (
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+
 	"github.com/cosmos/cosmos-sdk/x/feegrant"
 )
 
 func (suite *KeeperTestSuite) TestGrantAllowance() {
-	oneYear := suite.ctx.BlockTime().AddDate(1, 0, 0)
+	oneYear := suite.sdkCtx.BlockTime().AddDate(1, 0, 0)
 
 	testCases := []struct {
 		name      string
@@ -127,7 +128,7 @@ func (suite *KeeperTestSuite) TestGrantAllowance() {
 }
 
 func (suite *KeeperTestSuite) TestRevokeAllowance() {
-	oneYear := suite.ctx.BlockTime().AddDate(1, 0, 0)
+	oneYear := suite.sdkCtx.BlockTime().AddDate(1, 0, 0)
 
 	testCases := []struct {
 		name      string

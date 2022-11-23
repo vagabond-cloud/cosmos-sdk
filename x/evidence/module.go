@@ -4,34 +4,31 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 
-	gwruntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+
+	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
+
 	abci "github.com/tendermint/tendermint/abci/types"
-
-	"cosmossdk.io/core/appmodule"
-
-	"cosmossdk.io/depinject"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	store "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	simtypes "github.com/cosmos/cosmos-sdk/types/simulation"
-
-	modulev1 "cosmossdk.io/api/cosmos/evidence/module/v1"
-
 	eviclient "github.com/cosmos/cosmos-sdk/x/evidence/client"
 	"github.com/cosmos/cosmos-sdk/x/evidence/client/cli"
+	"github.com/cosmos/cosmos-sdk/x/evidence/client/rest"
 	"github.com/cosmos/cosmos-sdk/x/evidence/keeper"
 	"github.com/cosmos/cosmos-sdk/x/evidence/simulation"
 	"github.com/cosmos/cosmos-sdk/x/evidence/types"
 )
 
 var (
-	_ module.BeginBlockAppModule = AppModule{}
+	_ module.AppModule           = AppModule{}
 	_ module.AppModuleBasic      = AppModuleBasic{}
 	_ module.AppModuleSimulation = AppModule{}
 )
@@ -77,11 +74,20 @@ func (AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, config client.TxEncod
 	return gs.Validate()
 }
 
-// RegisterGRPCGatewayRoutes registers the gRPC Gateway routes for the evidence module.
-func (a AppModuleBasic) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *gwruntime.ServeMux) {
-	if err := types.RegisterQueryHandlerClient(context.Background(), mux, types.NewQueryClient(clientCtx)); err != nil {
-		panic(err)
+// RegisterRESTRoutes registers the evidence module's REST service handlers.
+func (a AppModuleBasic) RegisterRESTRoutes(clientCtx client.Context, rtr *mux.Router) {
+	evidenceRESTHandlers := make([]rest.EvidenceRESTHandler, len(a.evidenceHandlers))
+
+	for i, evidenceHandler := range a.evidenceHandlers {
+		evidenceRESTHandlers[i] = evidenceHandler.RESTHandler(clientCtx)
 	}
+
+	rest.RegisterRoutes(clientCtx, rtr, evidenceRESTHandlers)
+}
+
+// RegisterGRPCGatewayRoutes registers the gRPC Gateway routes for the evidence module.
+func (a AppModuleBasic) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *runtime.ServeMux) {
+	types.RegisterQueryHandlerClient(context.Background(), mux, types.NewQueryClient(clientCtx))
 }
 
 // GetTxCmd returns the evidence module's root tx command.
@@ -122,17 +128,24 @@ func NewAppModule(keeper keeper.Keeper) AppModule {
 	}
 }
 
-var _ appmodule.AppModule = AppModule{}
-
-// IsOnePerModuleType implements the depinject.OnePerModuleType interface.
-func (am AppModule) IsOnePerModuleType() {}
-
-// IsAppModule implements the appmodule.AppModule interface.
-func (am AppModule) IsAppModule() {}
-
 // Name returns the evidence module's name.
 func (am AppModule) Name() string {
 	return am.AppModuleBasic.Name()
+}
+
+// Route returns the evidence module's message routing key.
+func (am AppModule) Route() sdk.Route {
+	return sdk.NewRoute(types.RouterKey, NewHandler(am.keeper))
+}
+
+// QuerierRoute returns the evidence module's query routing key.
+func (AppModule) QuerierRoute() string {
+	return types.QuerierRoute
+}
+
+// LegacyQuerierHandler returns the evidence module's Querier.
+func (am AppModule) LegacyQuerierHandler(legacyQuerierCdc *codec.LegacyAmino) sdk.Querier {
+	return keeper.NewQuerier(am.keeper, legacyQuerierCdc)
 }
 
 // RegisterServices registers module services.
@@ -183,6 +196,11 @@ func (am AppModule) ProposalContents(simState module.SimulationState) []simtypes
 	return nil
 }
 
+// RandomizedParams creates randomized evidence param changes for the simulator.
+func (AppModule) RandomizedParams(r *rand.Rand) []simtypes.ParamChange {
+	return nil
+}
+
 // RegisterStoreDecoder registers a decoder for evidence module's types
 func (am AppModule) RegisterStoreDecoder(sdr sdk.StoreDecoderRegistry) {
 	sdr[types.StoreKey] = simulation.NewDecodeStore(am.keeper)
@@ -191,38 +209,4 @@ func (am AppModule) RegisterStoreDecoder(sdr sdk.StoreDecoderRegistry) {
 // WeightedOperations returns the all the gov module operations with their respective weights.
 func (am AppModule) WeightedOperations(simState module.SimulationState) []simtypes.WeightedOperation {
 	return nil
-}
-
-//
-// App Wiring Setup
-//
-
-func init() {
-	appmodule.Register(&modulev1.Module{},
-		appmodule.Provide(ProvideModule),
-	)
-}
-
-type EvidenceInputs struct {
-	depinject.In
-
-	Key *store.KVStoreKey
-	Cdc codec.Codec
-
-	StakingKeeper  types.StakingKeeper
-	SlashingKeeper types.SlashingKeeper
-}
-
-type EvidenceOutputs struct {
-	depinject.Out
-
-	EvidenceKeeper keeper.Keeper
-	Module         appmodule.AppModule
-}
-
-func ProvideModule(in EvidenceInputs) EvidenceOutputs {
-	k := keeper.NewKeeper(in.Cdc, in.Key, in.StakingKeeper, in.SlashingKeeper)
-	m := NewAppModule(*k)
-
-	return EvidenceOutputs{EvidenceKeeper: *k, Module: m}
 }

@@ -13,10 +13,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/store/types"
 )
 
-// storeNameCtxKey is the TraceContext metadata key that identifies
-// the store which emitted a given trace.
-const storeNameCtxKey = "store_name"
-
 //----------------------------------------
 // Store
 
@@ -59,11 +55,7 @@ func NewFromKVStore(
 
 	for key, store := range stores {
 		if cms.TracingEnabled() {
-			tctx := cms.traceContext.Clone().Merge(types.TraceContext{
-				storeNameCtxKey: key.Name(),
-			})
-
-			store = tracekv.NewStore(store.(types.KVStore), cms.traceWriter, tctx)
+			store = tracekv.NewStore(store.(types.KVStore), cms.traceWriter, cms.traceContext)
 		}
 		if cms.ListeningEnabled(key) {
 			store = listenkv.NewStore(store.(types.KVStore), key, listeners[key])
@@ -136,11 +128,6 @@ func (cms Store) ListeningEnabled(key types.StoreKey) bool {
 		return len(ls) != 0
 	}
 	return false
-}
-
-// LatestVersion returns the branch version of the store
-func (cms Store) LatestVersion() int64 {
-	panic("cannot get latest version from branch cached multi-store")
 }
 
 // GetStoreType returns the type of the store.

@@ -9,9 +9,10 @@ import (
 	"github.com/btcsuite/btcd/btcec"
 	"github.com/pkg/errors"
 
-	"github.com/cosmos/go-bip39"
 	secp256k1 "github.com/tendermint/btcd/btcec"
 	"github.com/tendermint/tendermint/crypto"
+
+	"github.com/cosmos/go-bip39"
 
 	"github.com/cosmos/cosmos-sdk/crypto/hd"
 	csecp256k1 "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
@@ -23,11 +24,9 @@ import (
 // set the discoverLedger function which is responsible for loading the Ledger
 // device at runtime or returning an error.
 func init() {
-	options.discoverLedger = func() (SECP256K1, error) {
+	discoverLedger = func() (SECP256K1, error) {
 		return LedgerSECP256K1Mock{}, nil
 	}
-
-	initOptionsDefault()
 }
 
 type LedgerSECP256K1Mock struct{}

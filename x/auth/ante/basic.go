@@ -7,7 +7,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
-	"github.com/cosmos/cosmos-sdk/x/auth/migrations/legacytx"
+	"github.com/cosmos/cosmos-sdk/x/auth/legacy/legacytx"
 	authsigning "github.com/cosmos/cosmos-sdk/x/auth/signing"
 )
 
@@ -53,15 +53,14 @@ func (vmd ValidateMemoDecorator) AnteHandle(ctx sdk.Context, tx sdk.Tx, simulate
 		return ctx, sdkerrors.Wrap(sdkerrors.ErrTxDecode, "invalid transaction type")
 	}
 
+	params := vmd.ak.GetParams(ctx)
+
 	memoLength := len(memoTx.GetMemo())
-	if memoLength > 0 {
-		params := vmd.ak.GetParams(ctx)
-		if uint64(memoLength) > params.MaxMemoCharacters {
-			return ctx, sdkerrors.Wrapf(sdkerrors.ErrMemoTooLarge,
-				"maximum number of characters is %d but received %d characters",
-				params.MaxMemoCharacters, memoLength,
-			)
-		}
+	if uint64(memoLength) > params.MaxMemoCharacters {
+		return ctx, sdkerrors.Wrapf(sdkerrors.ErrMemoTooLarge,
+			"maximum number of characters is %d but received %d characters",
+			params.MaxMemoCharacters, memoLength,
+		)
 	}
 
 	return next(ctx, tx, simulate)

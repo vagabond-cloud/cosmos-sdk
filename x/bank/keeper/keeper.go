@@ -3,16 +3,15 @@ package keeper
 import (
 	"fmt"
 
-	"cosmossdk.io/math"
 	"github.com/cosmos/cosmos-sdk/codec"
-	"github.com/cosmos/cosmos-sdk/internal/conv"
 	"github.com/cosmos/cosmos-sdk/store/prefix"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	"github.com/cosmos/cosmos-sdk/types/query"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	vestexported "github.com/cosmos/cosmos-sdk/x/auth/vesting/exported"
 	"github.com/cosmos/cosmos-sdk/x/bank/types"
+	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 )
 
 var _ Keeper = (*BaseKeeper)(nil)
@@ -21,7 +20,6 @@ var _ Keeper = (*BaseKeeper)(nil)
 // between accounts.
 type Keeper interface {
 	SendKeeper
-	WithMintCoinsRestriction(MintingRestrictionFn) BaseKeeper
 
 	InitGenesis(sdk.Context, *types.GenesisState)
 	ExportGenesis(sdk.Context) *types.GenesisState
@@ -31,7 +29,6 @@ type Keeper interface {
 	GetPaginatedTotalSupply(ctx sdk.Context, pagination *query.PageRequest) (sdk.Coins, *query.PageResponse, error)
 	IterateTotalSupply(ctx sdk.Context, cb func(sdk.Coin) bool)
 	GetDenomMetaData(ctx sdk.Context, denom string) (types.Metadata, bool)
-	HasDenomMetaData(ctx sdk.Context, denom string) bool
 	SetDenomMetaData(ctx sdk.Context, denomMetaData types.Metadata)
 	IterateAllDenomMetaData(ctx sdk.Context, cb func(types.Metadata) bool)
 
@@ -55,7 +52,8 @@ type BaseKeeper struct {
 
 	ak                     types.AccountKeeper
 	cdc                    codec.BinaryCodec
-	storeKey               storetypes.StoreKey
+	storeKey               sdk.StoreKey
+	paramSpace             paramtypes.Subspace
 	mintCoinsRestrictionFn MintingRestrictionFn
 }
 
@@ -69,7 +67,7 @@ func (k BaseKeeper) GetPaginatedTotalSupply(ctx sdk.Context, pagination *query.P
 	supply := sdk.NewCoins()
 
 	pageRes, err := query.Paginate(supplyStore, pagination, func(key, value []byte) error {
-		var amount math.Int
+		var amount sdk.Int
 		err := amount.Unmarshal(value)
 		if err != nil {
 			return fmt.Errorf("unable to convert amount string to Int %v", err)
@@ -94,20 +92,22 @@ func (k BaseKeeper) GetPaginatedTotalSupply(ctx sdk.Context, pagination *query.P
 // by using a SendCoinsFromModuleToAccount execution.
 func NewBaseKeeper(
 	cdc codec.BinaryCodec,
-	storeKey storetypes.StoreKey,
+	storeKey sdk.StoreKey,
 	ak types.AccountKeeper,
+	paramSpace paramtypes.Subspace,
 	blockedAddrs map[string]bool,
-	authority string,
 ) BaseKeeper {
-	if _, err := sdk.AccAddressFromBech32(authority); err != nil {
-		panic(fmt.Errorf("invalid bank authority address: %w", err))
+	// set KeyTable if it has not already been set
+	if !paramSpace.HasKeyTable() {
+		paramSpace = paramSpace.WithKeyTable(types.ParamKeyTable())
 	}
 
 	return BaseKeeper{
-		BaseSendKeeper:         NewBaseSendKeeper(cdc, storeKey, ak, blockedAddrs, authority),
+		BaseSendKeeper:         NewBaseSendKeeper(cdc, storeKey, ak, paramSpace, blockedAddrs),
 		ak:                     ak,
 		cdc:                    cdc,
 		storeKey:               storeKey,
+		paramSpace:             paramSpace,
 		mintCoinsRestrictionFn: func(ctx sdk.Context, coins sdk.Coins) error { return nil },
 	}
 }
@@ -218,7 +218,7 @@ func (k BaseKeeper) GetSupply(ctx sdk.Context, denom string) sdk.Coin {
 	store := ctx.KVStore(k.storeKey)
 	supplyStore := prefix.NewStore(store, types.SupplyKey)
 
-	bz := supplyStore.Get(conv.UnsafeStrToBytes(denom))
+	bz := supplyStore.Get([]byte(denom))
 	if bz == nil {
 		return sdk.Coin{
 			Denom:  denom,
@@ -226,7 +226,7 @@ func (k BaseKeeper) GetSupply(ctx sdk.Context, denom string) sdk.Coin {
 		}
 	}
 
-	var amount math.Int
+	var amount sdk.Int
 	err := amount.Unmarshal(bz)
 	if err != nil {
 		panic(fmt.Errorf("unable to unmarshal supply value %v", err))
@@ -242,16 +242,16 @@ func (k BaseKeeper) GetSupply(ctx sdk.Context, denom string) sdk.Coin {
 func (k BaseKeeper) HasSupply(ctx sdk.Context, denom string) bool {
 	store := ctx.KVStore(k.storeKey)
 	supplyStore := prefix.NewStore(store, types.SupplyKey)
-	return supplyStore.Has(conv.UnsafeStrToBytes(denom))
+	return supplyStore.Has([]byte(denom))
 }
 
 // GetDenomMetaData retrieves the denomination metadata. returns the metadata and true if the denom exists,
 // false otherwise.
 func (k BaseKeeper) GetDenomMetaData(ctx sdk.Context, denom string) (types.Metadata, bool) {
 	store := ctx.KVStore(k.storeKey)
-	store = prefix.NewStore(store, types.DenomMetadataPrefix)
+	store = prefix.NewStore(store, types.DenomMetadataKey(denom))
 
-	bz := store.Get(conv.UnsafeStrToBytes(denom))
+	bz := store.Get([]byte(denom))
 	if bz == nil {
 		return types.Metadata{}, false
 	}
@@ -260,13 +260,6 @@ func (k BaseKeeper) GetDenomMetaData(ctx sdk.Context, denom string) (types.Metad
 	k.cdc.MustUnmarshal(bz, &metadata)
 
 	return metadata, true
-}
-
-// HasDenomMetaData checks if the denomination metadata exists in store.
-func (k BaseKeeper) HasDenomMetaData(ctx sdk.Context, denom string) bool {
-	store := ctx.KVStore(k.storeKey)
-	store = prefix.NewStore(store, types.DenomMetadataPrefix)
-	return store.Has(conv.UnsafeStrToBytes(denom))
 }
 
 // GetAllDenomMetaData retrieves all denominations metadata
@@ -288,7 +281,7 @@ func (k BaseKeeper) IterateAllDenomMetaData(ctx sdk.Context, cb func(types.Metad
 	denomMetaDataStore := prefix.NewStore(store, types.DenomMetadataPrefix)
 
 	iterator := denomMetaDataStore.Iterator(nil, nil)
-	defer sdk.LogDeferred(ctx.Logger(), func() error { return iterator.Close() })
+	defer iterator.Close()
 
 	for ; iterator.Valid(); iterator.Next() {
 		var metadata types.Metadata
@@ -303,7 +296,7 @@ func (k BaseKeeper) IterateAllDenomMetaData(ctx sdk.Context, cb func(types.Metad
 // SetDenomMetaData sets the denominations metadata
 func (k BaseKeeper) SetDenomMetaData(ctx sdk.Context, denomMetaData types.Metadata) {
 	store := ctx.KVStore(k.storeKey)
-	denomMetaDataStore := prefix.NewStore(store, types.DenomMetadataPrefix)
+	denomMetaDataStore := prefix.NewStore(store, types.DenomMetadataKey(denomMetaData.Base))
 
 	m := k.cdc.MustMarshal(&denomMetaData)
 	denomMetaDataStore.Set([]byte(denomMetaData.Base), m)
@@ -479,7 +472,7 @@ func (k BaseKeeper) setSupply(ctx sdk.Context, coin sdk.Coin) {
 
 	// Bank invariants and IBC requires to remove zero coins.
 	if coin.IsZero() {
-		supplyStore.Delete(conv.UnsafeStrToBytes(coin.GetDenom()))
+		supplyStore.Delete([]byte(coin.GetDenom()))
 	} else {
 		supplyStore.Set([]byte(coin.GetDenom()), intBytes)
 	}
@@ -492,7 +485,7 @@ func (k BaseKeeper) trackDelegation(ctx sdk.Context, addr sdk.AccAddress, balanc
 		return sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "account %s does not exist", addr)
 	}
 
-	vacc, ok := acc.(types.VestingAccount)
+	vacc, ok := acc.(vestexported.VestingAccount)
 	if ok {
 		// TODO: return error on account.TrackDelegation
 		vacc.TrackDelegation(ctx.BlockHeader().Time, balance, amt)
@@ -509,7 +502,7 @@ func (k BaseKeeper) trackUndelegation(ctx sdk.Context, addr sdk.AccAddress, amt 
 		return sdkerrors.Wrapf(sdkerrors.ErrUnknownAddress, "account %s does not exist", addr)
 	}
 
-	vacc, ok := acc.(types.VestingAccount)
+	vacc, ok := acc.(vestexported.VestingAccount)
 	if ok {
 		// TODO: return error on account.TrackUndelegation
 		vacc.TrackUndelegation(amt)
@@ -527,10 +520,10 @@ func (k BaseViewKeeper) IterateTotalSupply(ctx sdk.Context, cb func(sdk.Coin) bo
 	supplyStore := prefix.NewStore(store, types.SupplyKey)
 
 	iterator := supplyStore.Iterator(nil, nil)
-	defer sdk.LogDeferred(ctx.Logger(), func() error { return iterator.Close() })
+	defer iterator.Close()
 
 	for ; iterator.Valid(); iterator.Next() {
-		var amount math.Int
+		var amount sdk.Int
 		err := amount.Unmarshal(iterator.Value())
 		if err != nil {
 			panic(fmt.Errorf("unable to unmarshal supply value %v", err))

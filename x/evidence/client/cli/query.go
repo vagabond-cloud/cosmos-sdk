@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -31,6 +32,7 @@ $ %s query %s --page=2 --limit=50
 			),
 		),
 		Args:                       cobra.MaximumNArgs(1),
+		DisableFlagParsing:         true,
 		SuggestionsMinimumDistance: 2,
 		RunE:                       QueryEvidenceCmd(),
 	}
@@ -63,9 +65,14 @@ func QueryEvidenceCmd() func(*cobra.Command, []string) error {
 }
 
 func queryEvidence(clientCtx client.Context, hash string) error {
+	decodedHash, err := hex.DecodeString(hash)
+	if err != nil {
+		return fmt.Errorf("invalid evidence hash: %w", err)
+	}
+
 	queryClient := types.NewQueryClient(clientCtx)
 
-	params := &types.QueryEvidenceRequest{Hash: hash}
+	params := &types.QueryEvidenceRequest{EvidenceHash: decodedHash}
 	res, err := queryClient.Evidence(context.Background(), params)
 	if err != nil {
 		return err

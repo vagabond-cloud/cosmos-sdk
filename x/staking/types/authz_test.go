@@ -4,16 +4,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 
-	"github.com/cosmos/cosmos-sdk/testutil"
+	"github.com/cosmos/cosmos-sdk/simapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 )
 
 var (
 	coin100 = sdk.NewInt64Coin("steak", 100)
-	coin150 = sdk.NewInt64Coin("steak", 150)
 	coin50  = sdk.NewInt64Coin("steak", 50)
 	delAddr = sdk.AccAddress("_____delegator _____")
 	val1    = sdk.ValAddress("_____validator1_____")
@@ -22,9 +21,8 @@ var (
 )
 
 func TestAuthzAuthorizations(t *testing.T) {
-	key := sdk.NewKVStoreKey(stakingtypes.StoreKey)
-	testCtx := testutil.DefaultContextWithDB(t, key, sdk.NewTransientStoreKey("transient_test"))
-	ctx := testCtx.Ctx.WithBlockHeader(tmproto.Header{})
+	app := simapp.Setup(false)
+	ctx := app.BaseApp.NewContext(false, tmproto.Header{})
 
 	// verify ValidateBasic returns error for the AUTHORIZATION_TYPE_UNSPECIFIED authorization type
 	delAuth, err := stakingtypes.NewStakeAuthorization([]sdk.ValAddress{val1, val2}, []sdk.ValAddress{}, stakingtypes.AuthorizationType_AUTHORIZATION_TYPE_UNSPECIFIED, &coin100)
@@ -70,17 +68,6 @@ func TestAuthzAuthorizations(t *testing.T) {
 			stakingtypes.NewMsgDelegate(delAddr, val1, coin100),
 			false,
 			true,
-			nil,
-		},
-		{
-			"delegate: coins more than allowed",
-			[]sdk.ValAddress{val1, val2},
-			[]sdk.ValAddress{},
-			stakingtypes.AuthorizationType_AUTHORIZATION_TYPE_DELEGATE,
-			&coin100,
-			stakingtypes.NewMsgDelegate(delAddr, val1, coin150),
-			true,
-			false,
 			nil,
 		},
 		{
@@ -135,21 +122,7 @@ func TestAuthzAuthorizations(t *testing.T) {
 			false,
 			nil,
 		},
-		{
-			"delegate: testing with a validator out of denylist",
-			[]sdk.ValAddress{},
-			[]sdk.ValAddress{val1},
-			stakingtypes.AuthorizationType_AUTHORIZATION_TYPE_DELEGATE,
-			nil,
-			stakingtypes.NewMsgDelegate(delAddr, val2, coin100),
-			false,
-			false,
-			&stakingtypes.StakeAuthorization{
-				Validators: &stakingtypes.StakeAuthorization_DenyList{
-					DenyList: &stakingtypes.StakeAuthorization_Validators{Address: []string{val1.String()}},
-				}, MaxTokens: nil, AuthorizationType: stakingtypes.AuthorizationType_AUTHORIZATION_TYPE_DELEGATE,
-			},
-		},
+
 		{
 			"undelegate: expect 0 remaining coins",
 			[]sdk.ValAddress{val1, val2},

@@ -3,22 +3,18 @@ package vesting
 import (
 	"encoding/json"
 
-	gwruntime "github.com/grpc-ecosystem/grpc-gateway/runtime"
+	"github.com/gorilla/mux"
+	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spf13/cobra"
 	abci "github.com/tendermint/tendermint/abci/types"
-
-	"cosmossdk.io/depinject"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
-
-	modulev1 "cosmossdk.io/api/cosmos/vesting/module/v1"
-	"cosmossdk.io/core/appmodule"
-
 	"github.com/cosmos/cosmos-sdk/x/auth/keeper"
+
 	"github.com/cosmos/cosmos-sdk/x/auth/vesting/client/cli"
 	"github.com/cosmos/cosmos-sdk/x/auth/vesting/types"
 )
@@ -59,9 +55,12 @@ func (AppModuleBasic) ValidateGenesis(_ codec.JSONCodec, _ client.TxEncodingConf
 	return nil
 }
 
+// RegisterRESTRoutes registers module's REST handlers. Currently, this is a no-op.
+func (AppModuleBasic) RegisterRESTRoutes(_ client.Context, _ *mux.Router) {}
+
 // RegisterGRPCGatewayRoutes registers the module's gRPC Gateway routes. Currently, this
 // is a no-op.
-func (a AppModuleBasic) RegisterGRPCGatewayRoutes(_ client.Context, _ *gwruntime.ServeMux) {}
+func (a AppModuleBasic) RegisterGRPCGatewayRoutes(_ client.Context, _ *runtime.ServeMux) {}
 
 // GetTxCmd returns the root tx command for the auth module.
 func (AppModuleBasic) GetTxCmd() *cobra.Command {
@@ -80,30 +79,53 @@ type AppModule struct {
 
 	accountKeeper keeper.AccountKeeper
 	bankKeeper    types.BankKeeper
+	distrKeeper   types.DistrKeeper
+	stakingKeeper types.StakingKeeper
 }
 
-func NewAppModule(ak keeper.AccountKeeper, bk types.BankKeeper) AppModule {
+func NewAppModule(
+	ak keeper.AccountKeeper,
+	bk types.BankKeeper,
+	dk types.DistrKeeper,
+	sk types.StakingKeeper,
+) AppModule {
 	return AppModule{
 		AppModuleBasic: AppModuleBasic{},
 		accountKeeper:  ak,
 		bankKeeper:     bk,
+		distrKeeper:    dk,
+		stakingKeeper:  sk,
 	}
 }
-
-var _ appmodule.AppModule = AppModule{}
-
-// IsOnePerModuleType implements the depinject.OnePerModuleType interface.
-func (am AppModule) IsOnePerModuleType() {}
-
-// IsAppModule implements the appmodule.AppModule interface.
-func (am AppModule) IsAppModule() {}
 
 // RegisterInvariants performs a no-op; there are no invariants to enforce.
 func (AppModule) RegisterInvariants(_ sdk.InvariantRegistry) {}
 
+// Route returns the module's message router and handler.
+func (am AppModule) Route() sdk.Route {
+	return sdk.NewRoute(types.RouterKey, NewHandler(am.accountKeeper, am.bankKeeper, am.distrKeeper, am.stakingKeeper))
+}
+
+// QuerierRoute returns an empty string as the module contains no query
+// functionality.
+func (AppModule) QuerierRoute() string { return "" }
+
 // RegisterServices registers module services.
 func (am AppModule) RegisterServices(cfg module.Configurator) {
-	types.RegisterMsgServer(cfg.MsgServer(), NewMsgServerImpl(am.accountKeeper, am.bankKeeper))
+	types.RegisterMsgServer(
+		cfg.MsgServer(),
+		NewMsgServerImpl(
+			am.accountKeeper,
+			am.bankKeeper,
+			am.distrKeeper,
+			am.stakingKeeper,
+		),
+	)
+}
+
+// LegacyQuerierHandler performs a no-op.
+func (am AppModule) LegacyQuerierHandler(_ *codec.LegacyAmino) sdk.Querier {
+	return nil
 }
 
 // InitGenesis performs a no-op.
@@ -118,32 +140,3 @@ func (am AppModule) ExportGenesis(_ sdk.Context, cdc codec.JSONCodec) json.RawMe
 
 // ConsensusVersion implements AppModule/ConsensusVersion.
 func (AppModule) ConsensusVersion() uint64 { return 1 }
-
-//
-// App Wiring Setup
-//
-
-func init() {
-	appmodule.Register(&modulev1.Module{},
-		appmodule.Provide(ProvideModule),
-	)
-}
-
-type VestingInputs struct {
-	depinject.In
-
-	AccountKeeper keeper.AccountKeeper
-	BankKeeper    types.BankKeeper
-}
-
-type VestingOutputs struct {
-	depinject.Out
-
-	Module appmodule.AppModule
-}
-
-func ProvideModule(in VestingInputs) VestingOutputs {
-	m := NewAppModule(in.AccountKeeper, in.BankKeeper)
-
-	return VestingOutputs{Module: m}
-}

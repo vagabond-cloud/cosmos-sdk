@@ -11,9 +11,8 @@ import (
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
-	storetypes "github.com/cosmos/cosmos-sdk/store/types"
+	"github.com/cosmos/cosmos-sdk/tests/mocks"
 	"github.com/cosmos/cosmos-sdk/testutil"
-	"github.com/cosmos/cosmos-sdk/testutil/mock"
 	"github.com/cosmos/cosmos-sdk/types"
 )
 
@@ -43,10 +42,6 @@ func (s *contextTestSuite) TestCacheContext() {
 	s.Require().Equal(v1, cstore.Get(k1))
 	s.Require().Nil(cstore.Get(k2))
 
-	// emit some events
-	cctx.EventManager().EmitEvent(types.NewEvent("foo", types.NewAttribute("key", "value")))
-	cctx.EventManager().EmitEvent(types.NewEvent("bar", types.NewAttribute("key", "value")))
-
 	cstore.Set(k2, v2)
 	s.Require().Equal(v2, cstore.Get(k2))
 	s.Require().Nil(store.Get(k2))
@@ -54,7 +49,6 @@ func (s *contextTestSuite) TestCacheContext() {
 	write()
 
 	s.Require().Equal(v2, store.Get(k2))
-	s.Require().Len(ctx.EventManager().Events(), 2)
 }
 
 func (s *contextTestSuite) TestLogContext() {
@@ -63,7 +57,7 @@ func (s *contextTestSuite) TestLogContext() {
 	ctrl := gomock.NewController(s.T())
 	s.T().Cleanup(ctrl.Finish)
 
-	logger := mock.NewMockLogger(ctrl)
+	logger := mocks.NewMockLogger(ctrl)
 	logger.EXPECT().Debug("debug")
 	logger.EXPECT().Info("info")
 	logger.EXPECT().Error("error")
@@ -72,6 +66,12 @@ func (s *contextTestSuite) TestLogContext() {
 	ctx.Logger().Debug("debug")
 	ctx.Logger().Info("info")
 	ctx.Logger().Error("error")
+}
+
+type dummy int64 //nolint:unused
+
+func (d dummy) Clone() interface{} {
+	return d
 }
 
 // Testing saving/loading sdk type values to/from the context
@@ -87,13 +87,12 @@ func (s *contextTestSuite) TestContextWithCustom() {
 	chainid := "chainid"
 	ischeck := true
 	txbytes := []byte("txbytes")
-	logger := mock.NewMockLogger(ctrl)
+	logger := mocks.NewMockLogger(ctrl)
 	voteinfos := []abci.VoteInfo{{}}
 	meter := types.NewGasMeter(10000)
 	blockGasMeter := types.NewGasMeter(20000)
 	minGasPrices := types.DecCoins{types.NewInt64DecCoin("feetoken", 1)}
 	headerHash := []byte("headerHash")
-	zeroGasCfg := storetypes.GasConfig{}
 
 	ctx = types.NewContext(nil, header, ischeck, logger)
 	s.Require().Equal(header, ctx.BlockHeader())
@@ -106,10 +105,7 @@ func (s *contextTestSuite) TestContextWithCustom() {
 		WithGasMeter(meter).
 		WithMinGasPrices(minGasPrices).
 		WithBlockGasMeter(blockGasMeter).
-		WithHeaderHash(headerHash).
-		WithKVGasConfig(zeroGasCfg).
-		WithTransientKVGasConfig(zeroGasCfg)
-
+		WithHeaderHash(headerHash)
 	s.Require().Equal(height, ctx.BlockHeight())
 	s.Require().Equal(chainid, ctx.ChainID())
 	s.Require().Equal(ischeck, ctx.IsCheckTx())
@@ -121,8 +117,6 @@ func (s *contextTestSuite) TestContextWithCustom() {
 	s.Require().Equal(blockGasMeter, ctx.BlockGasMeter())
 	s.Require().Equal(headerHash, ctx.HeaderHash().Bytes())
 	s.Require().False(ctx.WithIsCheckTx(false).IsCheckTx())
-	s.Require().Equal(zeroGasCfg, ctx.KVGasConfig())
-	s.Require().Equal(zeroGasCfg, ctx.TransientKVGasConfig())
 
 	// test IsReCheckTx
 	s.Require().False(ctx.IsReCheckTx())
@@ -133,7 +127,7 @@ func (s *contextTestSuite) TestContextWithCustom() {
 
 	// test consensus param
 	s.Require().Nil(ctx.ConsensusParams())
-	cp := &tmproto.ConsensusParams{}
+	cp := &abci.ConsensusParams{}
 	s.Require().Equal(cp, ctx.WithConsensusParams(cp).ConsensusParams())
 
 	// test inner context
@@ -226,9 +220,4 @@ func (s *contextTestSuite) TestUnwrapSDKContext() {
 
 	ctx = context.Background()
 	s.Require().Panics(func() { types.UnwrapSDKContext(ctx) })
-
-	// test unwrapping when we've used context.WithValue
-	ctx = context.WithValue(sdkCtx, "foo", "bar")
-	sdkCtx2 = types.UnwrapSDKContext(ctx)
-	s.Require().Equal(sdkCtx, sdkCtx2)
 }

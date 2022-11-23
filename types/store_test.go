@@ -45,10 +45,10 @@ func (s *storeTestSuite) TestPrefixEndBytes() {
 }
 
 func (s *storeTestSuite) TestCommitID() {
-	var empty types.CommitID
+	var empty sdk.CommitID
 	s.Require().True(empty.IsZero())
 
-	nonempty := types.CommitID{
+	nonempty := sdk.CommitID{
 		Version: 1,
 		Hash:    []byte("testhash"),
 	}
@@ -56,7 +56,7 @@ func (s *storeTestSuite) TestCommitID() {
 }
 
 func (s *storeTestSuite) TestNewTransientStoreKeys() {
-	s.Require().Equal(map[string]*types.TransientStoreKey{}, sdk.NewTransientStoreKeys())
+	s.Require().Equal(map[string]*sdk.TransientStoreKey{}, sdk.NewTransientStoreKeys())
 	s.Require().Equal(1, len(sdk.NewTransientStoreKeys("one")))
 }
 

@@ -6,11 +6,12 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	abci "github.com/tendermint/tendermint/abci/types"
 	tmbytes "github.com/tendermint/tendermint/libs/bytes"
 	rpcclient "github.com/tendermint/tendermint/rpc/client"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/cosmos/cosmos-sdk/store/rootmulti"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -19,7 +20,7 @@ import (
 
 // GetNode returns an RPC client. If the context's client is not defined, an
 // error is returned.
-func (ctx Context) GetNode() (TendermintRPC, error) {
+func (ctx Context) GetNode() (rpcclient.Client, error) {
 	if ctx.Client == nil {
 		return nil, errors.New("no RPC client is defined in offline mode")
 	}
@@ -59,11 +60,6 @@ func (ctx Context) QueryABCI(req abci.RequestQuery) (abci.ResponseQuery, error) 
 // GetFromAddress returns the from address from the context's name.
 func (ctx Context) GetFromAddress() sdk.AccAddress {
 	return ctx.FromAddress
-}
-
-// GetFeePayerAddress returns the fee granter address from the context
-func (ctx Context) GetFeePayerAddress() sdk.AccAddress {
-	return ctx.FeePayer
 }
 
 // GetFeeGranterAddress returns the fee granter address from the context

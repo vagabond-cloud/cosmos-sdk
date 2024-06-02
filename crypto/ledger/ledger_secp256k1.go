@@ -14,18 +14,17 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/types"
 )
 
-// options stores the Ledger Options that can be used to customize Ledger usage
-var options Options
+var (
+	// discoverLedger defines a function to be invoked at runtime for discovering
+	// a connected Ledger device.
+	discoverLedger discoverLedgerFn
+)
 
 type (
 	// discoverLedgerFn defines a Ledger discovery function that returns a
 	// connected device or an error upon failure. Its allows a method to avoid CGO
 	// dependencies when Ledger support is potentially not enabled.
 	discoverLedgerFn func() (SECP256K1, error)
-
-	// createPubkeyFn supports returning different public key types that implement
-	// types.PubKey
-	createPubkeyFn func([]byte) types.PubKey
 
 	// SECP256K1 reflects an interface a Ledger API must implement for SECP256K1
 	SECP256K1 interface {
@@ -38,15 +37,6 @@ type (
 		SignSECP256K1([]uint32, []byte) ([]byte, error)
 	}
 
-	// Options hosts customization options to account for differences in Ledger
-	// signing and usage across chains.
-	Options struct {
-		discoverLedger    discoverLedgerFn
-		createPubkey      createPubkeyFn
-		appName           string
-		skipDERConversion bool
-	}
-
 	// PrivKeyLedgerSecp256k1 implements PrivKey, calling the ledger nano we
 	// cache the PubKey from the first call to use it later.
 	PrivKeyLedgerSecp256k1 struct {
@@ -57,35 +47,6 @@ type (
 		Path         hd.BIP44Params
 	}
 )
-
-// Initialize the default options values for the Cosmos Ledger
-func initOptionsDefault() {
-	options.createPubkey = func(key []byte) types.PubKey {
-		return &secp256k1.PubKey{Key: key}
-	}
-	options.appName = "Cosmos"
-	options.skipDERConversion = false
-}
-
-// Set the discoverLedger function to use a different Ledger derivation
-func SetDiscoverLedger(fn discoverLedgerFn) {
-	options.discoverLedger = fn
-}
-
-// Set the createPubkey function to use a different public key
-func SetCreatePubkey(fn createPubkeyFn) {
-	options.createPubkey = fn
-}
-
-// Set the Ledger app name to use a different app name
-func SetAppName(appName string) {
-	options.appName = appName
-}
-
-// Set the DER Conversion requirement to true (false by default)
-func SetSkipDERConversion() {
-	options.skipDERConversion = true
-}
 
 // NewPrivKeySecp256k1Unsafe will generate a new key and store the public key for later use.
 //
@@ -141,7 +102,8 @@ func (pkl PrivKeyLedgerSecp256k1) Sign(message []byte) ([]byte, error) {
 }
 
 // ShowAddress triggers a ledger device to show the corresponding address.
-func ShowAddress(path hd.BIP44Params, expectedPubKey types.PubKey, accountAddressPrefix string) error {
+func ShowAddress(path hd.BIP44Params, expectedPubKey types.PubKey,
+	accountAddressPrefix string) error {
 	device, err := getDevice()
 	if err != nil {
 		return err
@@ -219,11 +181,11 @@ func convertDERtoBER(signatureDER []byte) ([]byte, error) {
 }
 
 func getDevice() (SECP256K1, error) {
-	if options.discoverLedger == nil {
+	if discoverLedger == nil {
 		return nil, errors.New("no Ledger discovery function defined")
 	}
 
-	device, err := options.discoverLedger()
+	device, err := discoverLedger()
 	if err != nil {
 		return nil, errors.Wrap(err, "ledger nano S")
 	}
@@ -261,10 +223,6 @@ func sign(device SECP256K1, pkl PrivKeyLedgerSecp256k1, msg []byte) ([]byte, err
 		return nil, err
 	}
 
-	if options.skipDERConversion {
-		return sig, nil
-	}
-
 	return convertDERtoBER(sig)
 }
 
@@ -279,7 +237,7 @@ func sign(device SECP256K1, pkl PrivKeyLedgerSecp256k1, msg []byte) ([]byte, err
 func getPubKeyUnsafe(device SECP256K1, path hd.BIP44Params) (types.PubKey, error) {
 	publicKey, err := device.GetPublicKeySECP256K1(path.DerivationPath())
 	if err != nil {
-		return nil, fmt.Errorf("please open the %v app on the Ledger device - error: %v", options.appName, err)
+		return nil, fmt.Errorf("please open Cosmos app on the Ledger device - error: %v", err)
 	}
 
 	// re-serialize in the 33-byte compressed format
@@ -291,7 +249,7 @@ func getPubKeyUnsafe(device SECP256K1, path hd.BIP44Params) (types.PubKey, error
 	compressedPublicKey := make([]byte, secp256k1.PubKeySize)
 	copy(compressedPublicKey, cmp.SerializeCompressed())
 
-	return options.createPubkey(compressedPublicKey), nil
+	return &secp256k1.PubKey{Key: compressedPublicKey}, nil
 }
 
 // getPubKeyAddr reads the pubkey and the address from a ledger device.
@@ -315,5 +273,5 @@ func getPubKeyAddrSafe(device SECP256K1, path hd.BIP44Params, hrp string) (types
 	compressedPublicKey := make([]byte, secp256k1.PubKeySize)
 	copy(compressedPublicKey, cmp.SerializeCompressed())
 
-	return options.createPubkey(compressedPublicKey), addr, nil
+	return &secp256k1.PubKey{Key: compressedPublicKey}, addr, nil
 }

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"sigs.k8s.io/yaml"
+	yaml "gopkg.in/yaml.v2"
 
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1beta1"
+	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 )
 
 const (
@@ -19,6 +19,7 @@ var _ govtypes.Content = &ParameterChangeProposal{}
 
 func init() {
 	govtypes.RegisterProposalType(ProposalTypeChange)
+	govtypes.RegisterProposalTypeCodec(&ParameterChangeProposal{}, "cosmos-sdk/ParameterChangeProposal")
 }
 
 func NewParameterChangeProposal(title, description string, changes []ParamChange) *ParameterChangeProposal {
@@ -51,18 +52,18 @@ func (pcp *ParameterChangeProposal) ValidateBasic() error {
 func (pcp ParameterChangeProposal) String() string {
 	var b strings.Builder
 
-	fmt.Fprintf(&b, `Parameter Change Proposal:
+	b.WriteString(fmt.Sprintf(`Parameter Change Proposal:
   Title:       %s
   Description: %s
   Changes:
-`, pcp.Title, pcp.Description)
+`, pcp.Title, pcp.Description))
 
 	for _, pc := range pcp.Changes {
-		fmt.Fprintf(&b, `    Param Change:
+		b.WriteString(fmt.Sprintf(`    Param Change:
       Subspace: %s
       Key:      %s
       Value:    %X
-`, pc.Subspace, pc.Key, pc.Value)
+`, pc.Subspace, pc.Key, pc.Value))
 	}
 
 	return b.String()

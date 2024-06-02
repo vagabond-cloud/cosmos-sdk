@@ -3,7 +3,7 @@ package types
 import (
 	"fmt"
 
-	proto "github.com/cosmos/gogoproto/proto"
+	proto "github.com/gogo/protobuf/proto"
 
 	"github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/x/evidence/exported"
@@ -37,7 +37,7 @@ func DefaultGenesisState() *GenesisState {
 	}
 }
 
-// Validate performs basic genesis state validation returning an error upon any
+// Validate performs basic gensis state validation returning an error upon any
 // failure.
 func (gs GenesisState) Validate() error {
 	for _, e := range gs.Evidence {

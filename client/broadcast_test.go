@@ -9,7 +9,7 @@ import (
 	"github.com/tendermint/tendermint/crypto/tmhash"
 	"github.com/tendermint/tendermint/mempool"
 	"github.com/tendermint/tendermint/rpc/client/mock"
-	coretypes "github.com/tendermint/tendermint/rpc/core/types"
+	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 	tmtypes "github.com/tendermint/tendermint/types"
 
 	"github.com/cosmos/cosmos-sdk/client/flags"
@@ -21,11 +21,15 @@ type MockClient struct {
 	err error
 }
 
-func (c MockClient) BroadcastTxAsync(ctx context.Context, tx tmtypes.Tx) (*coretypes.ResultBroadcastTx, error) {
+func (c MockClient) BroadcastTxCommit(ctx context.Context, tx tmtypes.Tx) (*ctypes.ResultBroadcastTxCommit, error) {
 	return nil, c.err
 }
 
-func (c MockClient) BroadcastTxSync(ctx context.Context, tx tmtypes.Tx) (*coretypes.ResultBroadcastTx, error) {
+func (c MockClient) BroadcastTxAsync(ctx context.Context, tx tmtypes.Tx) (*ctypes.ResultBroadcastTx, error) {
+	return nil, c.err
+}
+
+func (c MockClient) BroadcastTxSync(ctx context.Context, tx tmtypes.Tx) (*ctypes.ResultBroadcastTx, error) {
 	return nil, c.err
 }
 
@@ -46,6 +50,7 @@ func TestBroadcastError(t *testing.T) {
 
 	modes := []string{
 		flags.BroadcastAsync,
+		flags.BroadcastBlock,
 		flags.BroadcastSync,
 	}
 
@@ -62,4 +67,5 @@ func TestBroadcastError(t *testing.T) {
 			require.Equal(t, txHash, resp.TxHash)
 		}
 	}
+
 }

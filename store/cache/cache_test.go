@@ -9,7 +9,6 @@ import (
 	dbm "github.com/tendermint/tm-db"
 
 	"github.com/cosmos/cosmos-sdk/store/cache"
-	"github.com/cosmos/cosmos-sdk/store/cachekv"
 	iavlstore "github.com/cosmos/cosmos-sdk/store/iavl"
 	"github.com/cosmos/cosmos-sdk/store/types"
 )
@@ -19,7 +18,7 @@ func TestGetOrSetStoreCache(t *testing.T) {
 	mngr := cache.NewCommitKVStoreCacheManager(cache.DefaultCommitKVStoreCacheSize)
 
 	sKey := types.NewKVStoreKey("test")
-	tree, err := iavl.NewMutableTree(db, 100, false)
+	tree, err := iavl.NewMutableTree(db, 100)
 	require.NoError(t, err)
 	store := iavlstore.UnsafeNewStore(tree)
 	store2 := mngr.GetStoreCache(sKey, store)
@@ -33,7 +32,7 @@ func TestUnwrap(t *testing.T) {
 	mngr := cache.NewCommitKVStoreCacheManager(cache.DefaultCommitKVStoreCacheSize)
 
 	sKey := types.NewKVStoreKey("test")
-	tree, err := iavl.NewMutableTree(db, 100, false)
+	tree, err := iavl.NewMutableTree(db, 100)
 	require.NoError(t, err)
 	store := iavlstore.UnsafeNewStore(tree)
 	_ = mngr.GetStoreCache(sKey, store)
@@ -47,7 +46,7 @@ func TestStoreCache(t *testing.T) {
 	mngr := cache.NewCommitKVStoreCacheManager(cache.DefaultCommitKVStoreCacheSize)
 
 	sKey := types.NewKVStoreKey("test")
-	tree, err := iavl.NewMutableTree(db, 100, false)
+	tree, err := iavl.NewMutableTree(db, 100)
 	require.NoError(t, err)
 	store := iavlstore.UnsafeNewStore(tree)
 	kvStore := mngr.GetStoreCache(sKey, store)
@@ -67,38 +66,4 @@ func TestStoreCache(t *testing.T) {
 		require.Nil(t, kvStore.Get(key))
 		require.Nil(t, store.Get(key))
 	}
-}
-
-func TestReset(t *testing.T) {
-	db := dbm.NewMemDB()
-	mngr := cache.NewCommitKVStoreCacheManager(cache.DefaultCommitKVStoreCacheSize)
-
-	sKey := types.NewKVStoreKey("test")
-	tree, err := iavl.NewMutableTree(db, 100, false)
-	require.NoError(t, err)
-	store := iavlstore.UnsafeNewStore(tree)
-	store2 := mngr.GetStoreCache(sKey, store)
-
-	require.NotNil(t, store2)
-	require.Equal(t, store2, mngr.GetStoreCache(sKey, store))
-
-	// reset and check if the cache is gone
-	mngr.Reset()
-	require.Nil(t, mngr.Unwrap(sKey))
-
-	// check if the cache is recreated
-	require.Equal(t, store2, mngr.GetStoreCache(sKey, store))
-}
-
-func TestCacheWrap(t *testing.T) {
-	db := dbm.NewMemDB()
-	mngr := cache.NewCommitKVStoreCacheManager(cache.DefaultCommitKVStoreCacheSize)
-
-	sKey := types.NewKVStoreKey("test")
-	tree, err := iavl.NewMutableTree(db, 100, false)
-	require.NoError(t, err)
-	store := iavlstore.UnsafeNewStore(tree)
-
-	cacheWrapper := mngr.GetStoreCache(sKey, store).CacheWrap()
-	require.IsType(t, &cachekv.Store{}, cacheWrapper)
 }

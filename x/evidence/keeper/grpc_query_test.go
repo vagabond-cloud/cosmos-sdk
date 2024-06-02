@@ -7,6 +7,8 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/query"
 	"github.com/cosmos/cosmos-sdk/x/evidence/exported"
 	"github.com/cosmos/cosmos-sdk/x/evidence/types"
+
+	tmbytes "github.com/tendermint/tendermint/libs/bytes"
 )
 
 func (suite *KeeperTestSuite) TestQueryEvidence() {
@@ -32,7 +34,7 @@ func (suite *KeeperTestSuite) TestQueryEvidence() {
 		{
 			"invalid request with empty evidence hash",
 			func() {
-				req = &types.QueryEvidenceRequest{Hash: ""}
+				req = &types.QueryEvidenceRequest{EvidenceHash: tmbytes.HexBytes{}}
 			},
 			false,
 			func(res *types.QueryEvidenceResponse) {},
@@ -42,12 +44,12 @@ func (suite *KeeperTestSuite) TestQueryEvidence() {
 			func() {
 				numEvidence := 100
 				evidence = suite.populateEvidence(suite.ctx, numEvidence)
-				req = types.NewQueryEvidenceRequest(evidence[0].Hash().String())
+				req = types.NewQueryEvidenceRequest(evidence[0].Hash())
 			},
 			true,
 			func(res *types.QueryEvidenceResponse) {
 				var evi exported.Evidence
-				err := suite.encCfg.InterfaceRegistry.UnpackAny(res.Evidence, &evi)
+				err := suite.app.InterfaceRegistry().UnpackAny(res.Evidence, &evi)
 				suite.Require().NoError(err)
 				suite.Require().NotNil(evi)
 				suite.Require().Equal(evi, evidence[0])
@@ -78,7 +80,9 @@ func (suite *KeeperTestSuite) TestQueryEvidence() {
 }
 
 func (suite *KeeperTestSuite) TestQueryAllEvidence() {
-	var req *types.QueryAllEvidenceRequest
+	var (
+		req *types.QueryAllEvidenceRequest
+	)
 
 	testCases := []struct {
 		msg       string

@@ -220,21 +220,8 @@ func readTxCommandFlags(clientCtx Context, flagSet *pflag.FlagSet) (Context, err
 		clientCtx = clientCtx.WithSignModeStr(signModeStr)
 	}
 
-	if clientCtx.FeePayer == nil || flagSet.Changed(flags.FlagFeePayer) {
-		payer, _ := flagSet.GetString(flags.FlagFeePayer)
-
-		if payer != "" {
-			payerAcc, err := sdk.AccAddressFromBech32(payer)
-			if err != nil {
-				return clientCtx, err
-			}
-
-			clientCtx = clientCtx.WithFeePayerAddress(payerAcc)
-		}
-	}
-
-	if clientCtx.FeeGranter == nil || flagSet.Changed(flags.FlagFeeGranter) {
-		granter, _ := flagSet.GetString(flags.FlagFeeGranter)
+	if clientCtx.FeeGranter == nil || flagSet.Changed(flags.FlagFeeAccount) {
+		granter, _ := flagSet.GetString(flags.FlagFeeAccount)
 
 		if granter != "" {
 			granterAcc, err := sdk.AccAddressFromBech32(granter)
@@ -248,7 +235,7 @@ func readTxCommandFlags(clientCtx Context, flagSet *pflag.FlagSet) (Context, err
 
 	if clientCtx.From == "" || flagSet.Changed(flags.FlagFrom) {
 		from, _ := flagSet.GetString(flags.FlagFrom)
-		fromAddr, fromName, keyType, err := GetFromFields(clientCtx, clientCtx.Keyring, from)
+		fromAddr, fromName, keyType, err := GetFromFields(clientCtx.Keyring, from, clientCtx.GenerateOnly)
 		if err != nil {
 			return clientCtx, err
 		}
@@ -258,30 +245,11 @@ func readTxCommandFlags(clientCtx Context, flagSet *pflag.FlagSet) (Context, err
 		// If the `from` signer account is a ledger key, we need to use
 		// SIGN_MODE_AMINO_JSON, because ledger doesn't support proto yet.
 		// ref: https://github.com/cosmos/cosmos-sdk/issues/8109
-		if keyType == keyring.TypeLedger && clientCtx.SignModeStr != flags.SignModeLegacyAminoJSON && !clientCtx.LedgerHasProtobuf {
+		if keyType == keyring.TypeLedger && clientCtx.SignModeStr != flags.SignModeLegacyAminoJSON {
 			fmt.Println("Default sign-mode 'direct' not supported by Ledger, using sign-mode 'amino-json'.")
 			clientCtx = clientCtx.WithSignModeStr(flags.SignModeLegacyAminoJSON)
 		}
 	}
-
-	if !clientCtx.IsAux || flagSet.Changed(flags.FlagAux) {
-		isAux, _ := flagSet.GetBool(flags.FlagAux)
-		clientCtx = clientCtx.WithAux(isAux)
-		if isAux {
-			// If the user didn't explicitly set an --output flag, use JSON by
-			// default.
-			if clientCtx.OutputFormat == "" || !flagSet.Changed(cli.OutputFlag) {
-				clientCtx = clientCtx.WithOutputFormat("json")
-			}
-
-			// If the user didn't explicitly set a --sign-mode flag, use
-			// DIRECT_AUX by default.
-			if clientCtx.SignModeStr == "" || !flagSet.Changed(flags.FlagSignMode) {
-				clientCtx = clientCtx.WithSignModeStr(flags.SignModeDirectAux)
-			}
-		}
-	}
-
 	return clientCtx, nil
 }
 

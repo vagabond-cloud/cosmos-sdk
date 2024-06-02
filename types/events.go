@@ -7,11 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
-
-	"github.com/cosmos/gogoproto/jsonpb"
-	proto "github.com/cosmos/gogoproto/proto"
+	"github.com/gogo/protobuf/jsonpb"
+	proto "github.com/gogo/protobuf/proto"
 	abci "github.com/tendermint/tendermint/abci/types"
 
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -90,16 +87,11 @@ func TypedEventToEvent(tev proto.Message) (Event, error) {
 		return Event{}, err
 	}
 
-	// sort the keys to ensure the order is always the same
-	keys := maps.Keys(attrMap)
-	slices.Sort(keys)
-
 	attrs := make([]abci.EventAttribute, 0, len(attrMap))
-	for _, k := range keys {
-		v := attrMap[k]
+	for k, v := range attrMap {
 		attrs = append(attrs, abci.EventAttribute{
-			Key:   k,
-			Value: string(v),
+			Key:   []byte(k),
+			Value: v,
 		})
 	}
 
@@ -130,7 +122,7 @@ func ParseTypedEvent(event abci.Event) (proto.Message, error) {
 
 	attrMap := make(map[string]json.RawMessage)
 	for _, attr := range event.Attributes {
-		attrMap[attr.Key] = json.RawMessage(attr.Value)
+		attrMap[string(attr.Key)] = attr.Value
 	}
 
 	attrBytes, err := json.Marshal(attrMap)
@@ -186,7 +178,7 @@ func (a Attribute) String() string {
 
 // ToKVPair converts an Attribute object into a Tendermint key/value pair.
 func (a Attribute) ToKVPair() abci.EventAttribute {
-	return abci.EventAttribute{Key: a.Key, Value: a.Value}
+	return abci.EventAttribute{Key: toBytes(a.Key), Value: toBytes(a.Value)}
 }
 
 // AppendAttributes adds one or more attributes to an Event.
@@ -218,14 +210,24 @@ func (e Events) ToABCIEvents() []abci.Event {
 	return res
 }
 
+func toBytes(i interface{}) []byte {
+	switch x := i.(type) {
+	case []uint8:
+		return x
+	case string:
+		return []byte(x)
+	default:
+		panic(i)
+	}
+}
+
 // Common event types and attribute keys
-const (
+var (
 	EventTypeTx = "tx"
 
 	AttributeKeyAccountSequence = "acc_seq"
 	AttributeKeySignature       = "signature"
 	AttributeKeyFee             = "fee"
-	AttributeKeyFeePayer        = "fee_payer"
 
 	EventTypeMessage = "message"
 
@@ -244,10 +246,10 @@ func (se StringEvents) String() string {
 	var sb strings.Builder
 
 	for _, e := range se {
-		fmt.Fprintf(&sb, "\t\t- %s\n", e.Type)
+		sb.WriteString(fmt.Sprintf("\t\t- %s\n", e.Type))
 
 		for _, attr := range e.Attributes {
-			fmt.Fprintf(&sb, "\t\t\t- %s\n", attr)
+			sb.WriteString(fmt.Sprintf("\t\t\t- %s\n", attr.String()))
 		}
 	}
 
@@ -284,7 +286,7 @@ func StringifyEvent(e abci.Event) StringEvent {
 	for _, attr := range e.Attributes {
 		res.Attributes = append(
 			res.Attributes,
-			Attribute{Key: attr.Key, Value: attr.Value},
+			Attribute{string(attr.Key), string(attr.Value)},
 		)
 	}
 

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	tmcli "github.com/tendermint/tendermint/libs/cli"
+
 	"github.com/spf13/cobra"
 
 	"github.com/cosmos/cosmos-sdk/client"
@@ -50,7 +52,7 @@ func runConfigCmd(cmd *cobra.Command, args []string) error {
 			cmd.Println(conf.ChainID)
 		case flags.FlagKeyringBackend:
 			cmd.Println(conf.KeyringBackend)
-		case flags.FlagOutput:
+		case tmcli.OutputFlag:
 			cmd.Println(conf.Output)
 		case flags.FlagNode:
 			cmd.Println(conf.Node)
@@ -70,7 +72,7 @@ func runConfigCmd(cmd *cobra.Command, args []string) error {
 			conf.SetChainID(value)
 		case flags.FlagKeyringBackend:
 			conf.SetKeyringBackend(value)
-		case flags.FlagOutput:
+		case tmcli.OutputFlag:
 			conf.SetOutput(value)
 		case flags.FlagNode:
 			conf.SetNode(value)

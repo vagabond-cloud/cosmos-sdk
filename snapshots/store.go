@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/cosmos/gogoproto/proto"
+	"github.com/gogo/protobuf/proto"
 	db "github.com/tendermint/tm-db"
 
 	"github.com/cosmos/cosmos-sdk/snapshots/types"
@@ -36,7 +36,7 @@ func NewStore(db db.DB, dir string) (*Store, error) {
 	if dir == "" {
 		return nil, sdkerrors.Wrap(sdkerrors.ErrLogic, "snapshot directory not given")
 	}
-	err := os.MkdirAll(dir, 0o755)
+	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return nil, sdkerrors.Wrapf(err, "failed to create snapshot directory %q", dir)
 	}
@@ -145,13 +145,13 @@ func (s *Store) Load(height uint64, format uint32) (*types.Snapshot, <-chan io.R
 			ch <- pr
 			chunk, err := s.loadChunkFile(height, format, i)
 			if err != nil {
-				_ = pw.CloseWithError(err)
+				pw.CloseWithError(err)
 				return
 			}
 			defer chunk.Close()
 			_, err = io.Copy(pw, chunk)
 			if err != nil {
-				_ = pw.CloseWithError(err)
+				pw.CloseWithError(err)
 				return
 			}
 			chunk.Close()
@@ -259,9 +259,9 @@ func (s *Store) Save(
 	snapshotHasher := sha256.New()
 	chunkHasher := sha256.New()
 	for chunkBody := range chunks {
-		defer chunkBody.Close() //nolint:staticcheck
+		defer chunkBody.Close() // nolint: staticcheck
 		dir := s.pathSnapshot(height, format)
-		err = os.MkdirAll(dir, 0o755)
+		err = os.MkdirAll(dir, 0755)
 		if err != nil {
 			return nil, sdkerrors.Wrapf(err, "failed to create snapshot directory %q", dir)
 		}
@@ -270,7 +270,7 @@ func (s *Store) Save(
 		if err != nil {
 			return nil, sdkerrors.Wrapf(err, "failed to create snapshot chunk file %q", path)
 		}
-		defer file.Close() //nolint:staticcheck
+		defer file.Close() // nolint: staticcheck
 
 		chunkHasher.Reset()
 		_, err = io.Copy(io.MultiWriter(file, chunkHasher, snapshotHasher), chunkBody)

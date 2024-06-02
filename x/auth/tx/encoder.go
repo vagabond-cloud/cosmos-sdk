@@ -3,7 +3,7 @@ package tx
 import (
 	"fmt"
 
-	"github.com/cosmos/gogoproto/proto"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -42,5 +42,6 @@ func DefaultJSONTxEncoder(cdc codec.ProtoCodecMarshaler) sdk.TxEncoder {
 		}
 
 		return nil, fmt.Errorf("expected %T, got %T", &wrapper{}, tx)
+
 	}
 }

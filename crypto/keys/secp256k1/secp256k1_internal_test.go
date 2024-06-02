@@ -5,11 +5,12 @@ import (
 	"math/big"
 	"testing"
 
-	btcSecp256k1 "github.com/btcsuite/btcd/btcec/v2"
+	btcSecp256k1 "github.com/btcsuite/btcd/btcec"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_genPrivKey(t *testing.T) {
+
 	empty := make([]byte, 32)
 	oneB := big.NewInt(1).Bytes()
 	onePadded := make([]byte, 32)
